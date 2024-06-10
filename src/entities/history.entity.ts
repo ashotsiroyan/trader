@@ -6,7 +6,7 @@ export class History {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', nullable: false })
+  @Column({ type: 'float', nullable: false })
   price: number;
 
   @ManyToOne(() => Symbol, (symbol) => symbol.history)

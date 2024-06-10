@@ -12,10 +12,10 @@ export class Symbol {
   @Column({ type: 'timestamp', nullable: false })
   listingDate: Date;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'float', nullable: true })
   priceOnStart: number;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'float', nullable: true })
   priceOnMinute: number;
 
   @Column({ type: 'bool', default: false })

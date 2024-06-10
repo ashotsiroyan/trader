@@ -17,4 +17,11 @@ export class AppController {
     
     res.redirect('/');
   }
+
+  @Post('restart-timeouts')
+  async restartTimeouts(@Res() res: Response) {
+    await this.appService.restartTimeouts();
+    
+    res.redirect('/');
+  }
 }

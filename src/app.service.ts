@@ -26,7 +26,10 @@ export class AppService {
       listingDate: new Date(listingDate)
     });
 
-    this.addTimeout(symbol.name, symbol.listingDate.getTime() - new Date().getTime() - 1000);
+    const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
+    
+    if(timeoutMS > 0)
+      this.addTimeout(symbol.name, timeoutMS);
 
     return symbol;
   }
@@ -45,7 +48,7 @@ export class AppService {
         price = data.price;
 
         if(!price)
-          await this.delay(150);
+          await this.delay(100);
       }
 
       symbol.isListed = true;
@@ -64,11 +67,26 @@ export class AppService {
     return { success: true };
   }
 
+  async restartTimeouts(){
+    const symbols = await this.symbolRepository.findBy({ isListed: false });
+
+    for(let symbol of symbols){
+      const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
+      
+      if(timeoutMS > 0)
+        this.addTimeout(symbol.name, timeoutMS);
+    }
+
+    return { success: true }
+  }
+
   private addTimeout(name: string, milliseconds: number) {
     const callback = () => {
       this.setPrice(name);
-      this.schedulerRegistry.deleteTimeout(name);
     };
+
+    if(this.schedulerRegistry.doesExist('timeout', name))
+      this.schedulerRegistry.deleteTimeout(name);
 
     const timeout = setTimeout(callback, milliseconds);
     this.schedulerRegistry.addTimeout(name, timeout);
@@ -78,7 +96,7 @@ export class AppService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  @Cron('0 0 * * *')
+  @Cron('0 * * * *')
   async addPrices() {
     const { MEXC_HOST } = process.env;
     
