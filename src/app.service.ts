@@ -80,6 +80,26 @@ export class AppService {
     return { success: true }
   }
 
+  async getStatistics(){
+    const symbols = await this.symbolRepository.find({ where: { isFinished: true }, relations: { history: true } });
+    const response = [];
+
+    for(let i = 0; i < symbols.length; i++){
+      let symbol = symbols[i];
+
+      response.push({
+        symbol: symbol.name,
+        priceOnStart: symbol.priceOnStart,
+        priceOnMinute: symbol.priceOnMinute
+      });
+
+      for(let j = 0; j < symbol.history.length; j++)
+        response[i][j + 1] = symbol.history[j].price;
+    }
+
+    return response;
+  }
+
   private addTimeout(name: string, milliseconds: number) {
     const callback = () => {
       this.setPrice(name);
@@ -97,7 +117,7 @@ export class AppService {
   }
 
   @Cron('0 * * * *')
-  async addPrices() {
+  private async addPrices() {
     const { MEXC_HOST } = process.env;
     
     const symbols = await this.symbolRepository.find({ where: { isFinished: false, isListed: true } });
@@ -109,9 +129,14 @@ export class AppService {
       await this.historyRepository.save({
         symbol,
         price: data.price
-      })
+      });
 
-      const count = await this.historyRepository.countBy({ symbol });
+      const { count } = await this.historyRepository
+        .createQueryBuilder('history')
+        .select('COUNT("symbolId") as "count"')
+        .where('"symbolId" = ' + symbol.id)
+        .groupBy('"symbolId"')
+        .getRawOne();
 
       if(count >= 24){
         symbol.isFinished = true;
