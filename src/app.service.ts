@@ -23,7 +23,7 @@ export class AppService {
 
     const symbol = await this.symbolRepository.save({
       name: name.toUpperCase() + "USDT",
-      listingDate: new Date(listingDate)
+      listingDate: new Date(listingDate + "+4:00")
     });
 
     const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
@@ -41,13 +41,13 @@ export class AppService {
     if(!symbol.isListed){
       let price = 0;
 
-      while(!price) {
+      while(price == 0) {
         const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
         const data = await response.json();
         
         price = data.price;
 
-        if(!price)
+        if(price == 0)
           await this.delay(100);
       }
 
@@ -113,7 +113,7 @@ export class AppService {
 
       const count = await this.historyRepository.countBy({ symbol });
 
-      if(count == 24){
+      if(count >= 24){
         symbol.isFinished = true;
         await this.symbolRepository.save(symbol);
       }
