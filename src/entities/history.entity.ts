@@ -9,7 +9,7 @@ export class History {
   @Column({ type: 'float', nullable: false })
   price: number;
 
-  @ManyToOne(() => Symbol, (symbol) => symbol.history)
+  @ManyToOne(() => Symbol, (symbol) => symbol.history, { onDelete: 'CASCADE' })
   symbol: Symbol;
 
   @CreateDateColumn({ name: 'createdAt' })

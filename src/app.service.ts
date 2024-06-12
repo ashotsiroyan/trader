@@ -117,7 +117,7 @@ export class AppService {
   }
 
   @Cron('0 * * * *')
-  private async addPrices() {
+  async addPrices() {
     const { MEXC_HOST } = process.env;
     
     const symbols = await this.symbolRepository.find({ where: { isFinished: false, isListed: true } });
