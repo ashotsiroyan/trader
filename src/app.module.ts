@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
-import { Symbol } from './entities/symbol.entity';
-import { History } from './entities/history.entity';
+import { SymbolsModule } from './symbols/symbols.module';
 
 @Module({
   imports: [
@@ -27,10 +25,10 @@ import { History } from './entities/history.entity';
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Symbol, History]),
-    ScheduleModule.forRoot()
+    ScheduleModule.forRoot(),
+    SymbolsModule
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [],
 })
 export class AppModule {}

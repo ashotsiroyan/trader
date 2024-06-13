@@ -1,0 +1,19 @@
+form > div{
+    display: flex;
+    flex-flow: column;
+    width: 10%;
+    margin-bottom: 0.7vw;
+}
+
+form > div label{
+    margin-bottom: 0.4vw;
+}
+
+form button{
+    width: 5.5vw;
+    height: 1.4vw;
+    border: 1px solid;
+    border-radius: 7px;
+    background-color: transparent;
+    cursor: pointer;
+}
