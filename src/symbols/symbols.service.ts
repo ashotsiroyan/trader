@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, SchedulerRegistry } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import crypto from 'crypto';
 import { createHmac } from 'node:crypto';
 import { CreateSymbolDto } from './dto/create-symbol.dto';
 import { Symbol } from './entities/symbol.entity';
@@ -182,7 +181,7 @@ export class SymbolsService {
         this.schedulerRegistry.addTimeout(name, timeout);
     }
 
-    private generateQueryString(parameters): string {
+    private generateQueryString(parameters: { key: string, value: string, disabled?: boolean }[]): string {
         const ts = Date.now();
 
         let paramsObject = {};
