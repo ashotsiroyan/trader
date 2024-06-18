@@ -3,6 +3,7 @@ import { Cron, SchedulerRegistry } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import crypto from 'crypto';
+import { createHmac } from 'node:crypto';
 import { CreateSymbolDto } from './dto/create-symbol.dto';
 import { Symbol } from './entities/symbol.entity';
 import { History } from './entities/history.entity';
@@ -26,7 +27,7 @@ export class SymbolsService {
 
     async createSymbol(createSymbolDto: CreateSymbolDto) {
         const { name, listingDate } = createSymbolDto;
-        
+
         const symbol = await this.symbolRepository.save({
             name: name.toUpperCase() + "USDT",
             listingDate: new Date(listingDate + "+4:00")
@@ -40,7 +41,7 @@ export class SymbolsService {
         return symbol;
     }
 
-    private async setStartPrice(name: string){
+    private async setStartPrice(name: string) {
         const { MEXC_HOST } = process.env;
         const symbol = await this.symbolRepository.findOneBy({ name });
 
@@ -72,7 +73,7 @@ export class SymbolsService {
         return { success: true };
     }
 
-    private async setMinutePrice(name: string){
+    private async setMinutePrice(name: string) {
         const { MEXC_HOST } = process.env;
         const symbol = await this.symbolRepository.findOneBy({ name });
 
@@ -92,7 +93,7 @@ export class SymbolsService {
             .where('symbol.isListed = false OR (symbol.isListed = true AND symbol.priceOnMinute IS NULL)')
             .getMany();
 
-        if(symbols.length > 0){
+        if (symbols.length > 0) {
             for (let symbol of symbols) {
                 const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
 
@@ -101,7 +102,7 @@ export class SymbolsService {
             }
 
             this.logger.log("Timeouts restarted");
-        }else
+        } else
             this.logger.log("No timeout to restart");
     }
 
@@ -125,28 +126,49 @@ export class SymbolsService {
         return response;
     }
 
-    private async createOrder(symbol: string, side: Side){
-        try{
-            const { MEXC_API_KEY, MEXC_HOST} = process.env;
-            const { timestamp, signature } = this.generateTimestampAndSignature();
+    private async createOrder(symbol: string, side: Side) {
+        try {
+            const { MEXC_API_KEY, MEXC_HOST } = process.env;
 
             const myHeaders = new Headers();
             myHeaders.append("x-mexc-apikey", MEXC_API_KEY);
-            
-            const urlencoded = new URLSearchParams();
-            
+
+            const queryParams = [
+                {
+                    key: 'symbol',
+                    value: symbol
+                },
+                {
+                    key: 'side',
+                    value: side
+                },
+                {
+                    key: 'type',
+                    value: 'LIMIT'
+                },
+                {
+                    key: 'quantity',
+                    value: '100'
+                },
+                {
+                    key: 'price',
+                    value: '0.1'
+                }
+            ]
+
             const requestOptions = {
-              method: "POST",
-              headers: myHeaders,
-              body: urlencoded,
+                method: "POST",
+                headers: myHeaders
             };
-            
-            const response = await fetch(`${MEXC_HOST}/order?symbol=${symbol}&side=${side}&type=LIMIT&quantity=100&price=0.1&timestamp=${timestamp}&signature=${signature}`, requestOptions)
+
+            const queryString = this.generateQueryString(queryParams);
+
+            const response = await fetch(`${MEXC_HOST}/order?${queryString}`, requestOptions)
             const result = await response.json();
 
             return { success: true };
-        }catch(error){
-            console.error(error.msg)
+        } catch (error) {
+            console.error(error)
 
             return { success: false };
         }
@@ -159,20 +181,58 @@ export class SymbolsService {
         const timeout = setTimeout(() => callback(name), milliseconds);
         this.schedulerRegistry.addTimeout(name, timeout);
     }
-    
-    private generateTimestampAndSignature(): { timestamp: number, signature: string } {
-        const { MEXC_API_SECRET } = process.env;
 
-        const timestamp = Math.floor(Date.now() / 1000);
-        const signature = crypto
-            .createHmac('sha256', MEXC_API_SECRET)
-            .update(timestamp.toString())
-            .digest('hex');
+    private generateQueryString(parameters): string {
+        const ts = Date.now();
 
-        return {
-            timestamp,
-            signature
+        let paramsObject = {};
+        let queryString;
+
+        const { MEXC_API_SECRET: api_secret } = process.env;
+
+        parameters.map((param) => {
+            if (param.key != 'signature' &&
+                param.key != 'timestamp' &&
+                !is_empty(param.value) &&
+                !is_disabled(param.disabled)) {
+                paramsObject[param.key] = param.value;
+            }
+        })
+
+        Object.assign(paramsObject, { 'timestamp': ts });
+
+        if (api_secret) {
+            queryString = Object.keys(paramsObject).map((key) => {
+                return `${key}=${paramsObject[key]}`;
+            }).join('&');
+
+            const signature = createHmac('sha256', api_secret)
+                .update(queryString)
+                .digest('hex');
+
+            queryString += "&signature=" + signature;
         }
+
+        function is_disabled(str) {
+            return str == true;
+        }
+        
+        function is_empty(str) {
+            if (typeof str == 'undefined' ||
+                !str ||
+                str.length === 0 ||
+                str === "" ||
+                !/[^\s]/.test(str) ||
+                /^\s*$/.test(str) ||
+                str.replace(/\s/g, "") === "") {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+
+        return queryString;
     }
 
     private delay(ms: number) {
