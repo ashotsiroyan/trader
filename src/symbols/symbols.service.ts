@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, SchedulerRegistry } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import crypto from 'crypto';
 import { CreateSymbolDto } from './dto/create-symbol.dto';
 import { Symbol } from './entities/symbol.entity';
 import { History } from './entities/history.entity';
+import { Side } from './enums/side.num';
 
 @Injectable()
 export class SymbolsService {
@@ -33,38 +35,51 @@ export class SymbolsService {
         const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
 
         if (timeoutMS > 0)
-            this.addTimeout(symbol.name, timeoutMS);
+            this.addTimeout(symbol.name, timeoutMS, (name) => this.setStartPrice(name));
 
         return symbol;
     }
 
-    private async setPrice(name: string) {
+    private async setStartPrice(name: string){
         const { MEXC_HOST } = process.env;
         const symbol = await this.symbolRepository.findOneBy({ name });
 
-        if (!symbol.isListed) {
-            let price = 0;
+        if (symbol.isListed)
+            return { success: false }
 
-            while (price == 0) {
-                const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
-                const data = await response.json();
+        let price = 0;
 
-                price = data.price;
-
-                if (price == 0)
-                    await this.delay(100);
-            }
-
-            symbol.isListed = true;
-            symbol.priceOnStart = price;
-
-            this.addTimeout(symbol.name, 1000 * 60);
-        } else {
+        while (price == 0) {
             const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
             const data = await response.json();
 
-            symbol.priceOnMinute = data.price;
+            price = data.price;
+
+            if (price == 0)
+                await this.delay(100);
         }
+
+        await this.createOrder(name, Side.Buy);
+        this.addTimeout(symbol.name, 1000 * 60 * 60, (name) => this.createOrder(name, Side.Sell));
+
+        symbol.isListed = true;
+        symbol.priceOnStart = price;
+
+        this.addTimeout(symbol.name, 1000 * 60, (name) => this.setMinutePrice(name));
+
+        await this.symbolRepository.save(symbol);
+
+        return { success: true };
+    }
+
+    private async setMinutePrice(name: string){
+        const { MEXC_HOST } = process.env;
+        const symbol = await this.symbolRepository.findOneBy({ name });
+
+        const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
+        const data = await response.json();
+
+        symbol.priceOnMinute = data.price;
 
         await this.symbolRepository.save(symbol);
 
@@ -72,14 +87,17 @@ export class SymbolsService {
     }
 
     async restartTimeouts() {
-        const symbols = await this.symbolRepository.findBy({ isListed: false });
+        const symbols = await this.symbolRepository
+            .createQueryBuilder('symbol')
+            .where('symbol.isListed = 0 OR (symbol.isListed = 1 AND symbol.priceOnMinute IS NULL)')
+            .getMany();
 
         if(symbols.length > 0){
             for (let symbol of symbols) {
                 const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
 
                 if (timeoutMS > 0)
-                    this.addTimeout(symbol.name, timeoutMS);
+                    this.addTimeout(symbol.name, timeoutMS, (name) => !symbol.isListed ? this.setStartPrice(name) : this.setMinutePrice(name));
             }
 
             this.logger.log("Timeouts restarted");
@@ -100,23 +118,61 @@ export class SymbolsService {
                 priceOnMinute: symbol.priceOnMinute
             });
 
-            for (let j = 0; j < symbol.history.length; j++)
+            for (let j = 0; (j < symbol.history.length && j < 24); j++)
                 response[i][j + 1] = symbol.history[j].price;
         }
 
         return response;
     }
 
-    private addTimeout(name: string, milliseconds: number) {
-        const callback = () => {
-            this.setPrice(name);
-        };
+    private async createOrder(symbol: string, side: Side){
+        try{
+            const { MEXC_API_KEY, MEXC_HOST} = process.env;
+            const { timestamp, signature } = this.generateTimestampAndSignature();
 
+            const myHeaders = new Headers();
+            myHeaders.append("x-mexc-apikey", MEXC_API_KEY);
+            
+            const urlencoded = new URLSearchParams();
+            
+            const requestOptions = {
+              method: "POST",
+              headers: myHeaders,
+              body: urlencoded,
+            };
+            
+            const response = await fetch(`${MEXC_HOST}/order?symbol=${symbol}&side=${side}&type=LIMIT&quantity=100&price=0.1&timestamp=${timestamp}&signature=${signature}`, requestOptions)
+            const result = await response.json();
+
+            return { success: true };
+        }catch(error){
+            console.error(error.msg)
+
+            return { success: false };
+        }
+    }
+
+    private addTimeout(name: string, milliseconds: number, callback: (name: string) => Promise<{ success: boolean }>) {
         if (this.schedulerRegistry.doesExist('timeout', name))
             this.schedulerRegistry.deleteTimeout(name);
 
-        const timeout = setTimeout(callback, milliseconds);
+        const timeout = setTimeout(() => callback(name), milliseconds);
         this.schedulerRegistry.addTimeout(name, timeout);
+    }
+    
+    private generateTimestampAndSignature(): { timestamp: number, signature: string } {
+        const { MEXC_API_SECRET } = process.env;
+
+        const timestamp = Math.floor(Date.now() / 1000);
+        const signature = crypto
+            .createHmac('sha256', MEXC_API_SECRET)
+            .update(timestamp.toString())
+            .digest('hex');
+
+        return {
+            timestamp,
+            signature
+        }
     }
 
     private delay(ms: number) {
