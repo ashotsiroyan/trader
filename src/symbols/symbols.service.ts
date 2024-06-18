@@ -89,7 +89,7 @@ export class SymbolsService {
     async restartTimeouts() {
         const symbols = await this.symbolRepository
             .createQueryBuilder('symbol')
-            .where('symbol.isListed = 0 OR (symbol.isListed = 1 AND symbol.priceOnMinute IS NULL)')
+            .where('symbol.isListed = false OR (symbol.isListed = true AND symbol.priceOnMinute IS NULL)')
             .getMany();
 
         if(symbols.length > 0){
