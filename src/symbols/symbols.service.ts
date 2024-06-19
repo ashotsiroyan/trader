@@ -7,6 +7,7 @@ import { CreateSymbolDto } from './dto/create-symbol.dto';
 import { Symbol } from './entities/symbol.entity';
 import { History } from './entities/history.entity';
 import { Side } from './enums/side.num';
+import { Order } from './entities/order.entity';
 
 @Injectable()
 export class SymbolsService {
@@ -19,7 +20,10 @@ export class SymbolsService {
         private symbolRepository: Repository<Symbol>,
 
         @InjectRepository(History)
-        private historyRepository: Repository<History>
+        private historyRepository: Repository<History>,
+
+        @InjectRepository(Order)
+        private orderRepository: Repository<Order>
     ) {
         this.restartTimeouts();
     }
@@ -59,8 +63,7 @@ export class SymbolsService {
                 await this.delay(100);
         }
 
-        await this.createOrder(name, Side.Buy);
-        this.addTimeout(symbol.name, 1000 * 60 * 60, (name) => this.createOrder(name, Side.Sell));
+        await this.buySymbol(name);
 
         symbol.isListed = true;
         symbol.priceOnStart = price;
@@ -125,35 +128,68 @@ export class SymbolsService {
         return response;
     }
 
-    private async createOrder(symbol: string, side: Side) {
+    private async buySymbol(symbolName: string){
+        const symbol = await this.symbolRepository.findOneBy({ name: symbolName });
+
+        const queryParams: { key: string, value: string }[] = [
+            {
+                key: 'symbol',
+                value: symbol.name
+            },
+            {
+                key: 'side',
+                value: Side.Buy
+            },
+            {
+                key: 'type',
+                value: 'MARKET'
+            },
+            {
+                key: 'quoteOrderQty',
+                value: '10'
+            }
+        ];
+
+        const order = await this.createOrder(queryParams, symbol.id);
+
+        this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(order.id));
+
+        return { success: true };
+    }
+
+    private async sellSymbol(orderId: number){
+        const order = await this.orderRepository.findOne({ where: { id: orderId }, relations: { symbol: true } })
+
+        const queryParams: { key: string, value: string }[] = [
+            {
+                key: 'symbol',
+                value: order.symbol.name
+            },
+            {
+                key: 'side',
+                value: Side.Sell
+            },
+            {
+                key: 'type',
+                value: 'MARKET'
+            },
+            {
+                key: 'quantity',
+                value: order.origQty
+            }
+        ];
+
+        await this.createOrder(queryParams, order.symbol.id);
+
+        return { success: true }
+    }
+
+    private async createOrder(queryParams: { key: string, value: string }[], symbolId: number) {
         try {
             const { MEXC_API_KEY, MEXC_HOST } = process.env;
 
             const myHeaders = new Headers();
             myHeaders.append("x-mexc-apikey", MEXC_API_KEY);
-
-            const queryParams = [
-                {
-                    key: 'symbol',
-                    value: symbol
-                },
-                {
-                    key: 'side',
-                    value: side
-                },
-                {
-                    key: 'type',
-                    value: 'LIMIT'
-                },
-                {
-                    key: 'quantity',
-                    value: '100'
-                },
-                {
-                    key: 'price',
-                    value: '0.1'
-                }
-            ]
 
             const requestOptions = {
                 method: "POST",
@@ -165,11 +201,21 @@ export class SymbolsService {
             const response = await fetch(`${MEXC_HOST}/order?${queryString}`, requestOptions)
             const result = await response.json();
 
-            return { success: true };
+            const order = await this.orderRepository.save({
+                orderId: result.orderId,
+                symbol: {
+                    id: symbolId
+                },
+                price: result.price,
+                origQty: result.origQty,
+                side: result.side
+            })
+
+            return order;
         } catch (error) {
             console.error(error)
 
-            return { success: false };
+            return null;
         }
     }
 
@@ -215,7 +261,7 @@ export class SymbolsService {
         function is_disabled(str) {
             return str == true;
         }
-        
+
         function is_empty(str) {
             if (typeof str == 'undefined' ||
                 !str ||

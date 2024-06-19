@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
 import { History } from './history.entity';
+import { Order } from './order.entity';
 
 @Entity('symbol')
 export class Symbol {
@@ -26,6 +27,9 @@ export class Symbol {
 
   @OneToMany(() => History, (history) => history.symbol)
   history: History[];
+
+  @OneToMany(() => Order, (order) => order.symbol)
+  orders: Order[];
 
   @CreateDateColumn({ name: 'createdAt' })
   createdAt: Date;
