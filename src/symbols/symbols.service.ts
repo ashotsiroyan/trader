@@ -63,14 +63,14 @@ export class SymbolsService {
         await this.delay(100);
     }
 
+    this.addTimeout(symbol.name, 1000 * 60, (name) => this.setMinutePrice(name));
+
     await this.buySymbol(symbol.id);
 
     symbol.isListed = true;
     symbol.priceOnStart = price;
 
     await this.symbolRepository.save(symbol);
-
-    this.addTimeout(symbol.name, 1000 * 60, (name) => this.setMinutePrice(name));
 
     return { success: true };
   }
