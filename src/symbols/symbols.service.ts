@@ -65,12 +65,11 @@ export class SymbolsService {
 
     this.addTimeout(symbol.name, 1000 * 60, (name) => this.setMinutePrice(name));
 
-    await this.buySymbol(symbol.id);
-
     symbol.isListed = true;
     symbol.priceOnStart = price;
 
     await this.symbolRepository.save(symbol);
+    await this.buySymbol(symbol.id);
 
     return { success: true };
   }
@@ -131,7 +130,7 @@ export class SymbolsService {
   private async buySymbol(symbolId: number) {
     const symbol = await this.symbolRepository.findOneBy({ id: symbolId });
 
-    const queryParams: { key: string, value: string }[] = [
+    const queryParams = [
       {
         key: 'symbol',
         value: symbol.name
@@ -163,7 +162,7 @@ export class SymbolsService {
   private async sellSymbol(orderId: number) {
     const order = await this.orderRepository.findOne({ where: { id: orderId }, relations: { symbol: true } })
 
-    const queryParams: { key: string, value: string }[] = [
+    const queryParams = [
       {
         key: 'symbol',
         value: order.symbol.name
@@ -187,7 +186,7 @@ export class SymbolsService {
     return { success: newOrder != null };
   }
 
-  private async createOrder(queryParams: { key: string, value: string }[], symbolId: number) {
+  private async createOrder(queryParams: { key: string, value: string }[], symbolId: number): Promise<Order | null> {
     try {
       const { MEXC_API_KEY, MEXC_HOST } = process.env;
 
