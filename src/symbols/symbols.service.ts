@@ -98,8 +98,6 @@ export class SymbolsService {
     if (symbols.length > 0) {
       for (let symbol of symbols) {
         const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
-        console.log(symbol.listingDate);
-        
 
         if (timeoutMS > 0)
           this.addTimeout(symbol.name, timeoutMS, (name) => this.setStartPrice(name));
