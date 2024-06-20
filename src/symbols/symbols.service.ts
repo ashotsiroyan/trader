@@ -204,7 +204,7 @@ export class SymbolsService {
       const response = await fetch(`${MEXC_HOST}/order?${queryString}`, requestOptions)
       const result = await response.json();
 
-      if (result.code)
+      if (result.msg)
         throw new BadRequestException(result.msg);
 
       const order = await this.orderRepository.save({
