@@ -36,10 +36,10 @@ export class SymbolsService {
       listingDate: new Date(listingDate + "+4:00")
     });
 
-    const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
+    const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
 
     if (timeoutMS > 0)
-      this.addTimeout(symbol.name, timeoutMS, (name) => this.setStartPrice(name));
+      this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
 
     return symbol;
   }
@@ -49,7 +49,7 @@ export class SymbolsService {
     const symbol = await this.symbolRepository.findOneBy({ name });
 
     if (symbol.isListed)
-      return { success: false }
+      return;
 
     let price = 0;
 
@@ -63,15 +63,13 @@ export class SymbolsService {
         await this.delay(100);
     }
 
-    this.addTimeout(symbol.name, 1000 * 60, (name) => this.setMinutePrice(name));
+    this.addTimeout(symbol.name, 1000 * 60, () => this.setMinutePrice(symbol.name));
 
     symbol.isListed = true;
     symbol.priceOnStart = price;
 
     await this.symbolRepository.save(symbol);
     await this.buySymbol(symbol.id);
-
-    return { success: true };
   }
 
   private async setMinutePrice(name: string) {
@@ -84,8 +82,6 @@ export class SymbolsService {
     symbol.priceOnMinute = data.price;
 
     await this.symbolRepository.save(symbol);
-
-    return { success: true };
   }
 
   async restartTimeouts() {
@@ -99,7 +95,7 @@ export class SymbolsService {
         const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
 
         if (timeoutMS > 0)
-          this.addTimeout(symbol.name, timeoutMS, (name) => this.setStartPrice(name));
+          this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
       }
 
       this.logger.log("Timeouts restarted");
@@ -152,11 +148,9 @@ export class SymbolsService {
     const order = await this.createOrder(queryParams, symbol.id);
 
     if (!order)
-      return { success: false }
+      return;
 
     this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(order.id));
-
-    return { success: true };
   }
 
   private async sellSymbol(orderId: number) {
@@ -181,9 +175,7 @@ export class SymbolsService {
       }
     ];
 
-    const newOrder = await this.createOrder(queryParams, order.symbol.id);
-
-    return { success: newOrder != null };
+    await this.createOrder(queryParams, order.symbol.id);
   }
 
   private async createOrder(queryParams: { key: string, value: string }[], symbolId: number): Promise<Order | null> {
@@ -224,11 +216,11 @@ export class SymbolsService {
     }
   }
 
-  private addTimeout(name: string, milliseconds: number, callback: (name: string) => Promise<{ success: boolean }>) {
+  private addTimeout(name: string, milliseconds: number, callback: () => void) {
     if (this.schedulerRegistry.doesExist('timeout', name))
       this.schedulerRegistry.deleteTimeout(name);
 
-    const timeout = setTimeout(() => callback(name), milliseconds);
+    const timeout = setTimeout(callback, milliseconds);
     this.schedulerRegistry.addTimeout(name, timeout);
   }
 
