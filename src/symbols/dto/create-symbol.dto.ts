@@ -1,4 +1,4 @@
-export class CreateSymbolDto{
-    name: string;
-    listingDate: string;
+export class CreateSymbolDto {
+  name: string;
+  listingDate: string;
 }

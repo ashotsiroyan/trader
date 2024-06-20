@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { History } from './history.entity';
 import { Order } from './order.entity';
 
@@ -20,10 +26,10 @@ export class Symbol {
   priceOnMinute: number;
 
   @Column({ type: 'bool', default: false })
-  isListed: Boolean;
+  isListed: boolean;
 
   @Column({ type: 'bool', default: false })
-  isFinished: Boolean;
+  isFinished: boolean;
 
   @OneToMany(() => History, (history) => history.symbol)
   history: History[];

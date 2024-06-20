@@ -5,30 +5,28 @@ import { SymbolsService } from './symbols/symbols.service';
 
 @Controller()
 export class AppController {
-  constructor(
-    private readonly symbolsService: SymbolsService
-  ) {}
-  
+  constructor(private readonly symbolsService: SymbolsService) {}
+
   @Get()
   @Render('index')
-  getHome() { }
+  getHome() {}
 
   @Post('submit')
   async handleHomeForm(@Body() body: CreateSymbolDto, @Res() res: Response) {
     await this.symbolsService.createSymbol(body);
-    
+
     res.redirect('/');
   }
 
   @Post('restart-timeouts')
   async restartTimeouts(@Res() res: Response) {
     await this.symbolsService.restartTimeouts();
-    
+
     res.redirect('/');
   }
 
   @Get('statistics')
-  getStatistics(){
+  getStatistics() {
     return this.symbolsService.getStatistics();
   }
 }

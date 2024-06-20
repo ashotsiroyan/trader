@@ -26,7 +26,7 @@ import { SymbolsModule } from './symbols/symbols.module';
       inject: [ConfigService],
     }),
     ScheduleModule.forRoot(),
-    SymbolsModule
+    SymbolsModule,
   ],
   controllers: [AppController],
   providers: [],

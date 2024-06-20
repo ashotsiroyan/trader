@@ -7,11 +7,9 @@ import { Symbol } from './entities/symbol.entity';
 import { Order } from './entities/order.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Symbol, History, Order])
-  ],
+  imports: [TypeOrmModule.forFeature([Symbol, History, Order])],
   controllers: [SymbolsController],
   providers: [SymbolsService],
-  exports: [SymbolsService]
+  exports: [SymbolsService],
 })
-export class SymbolsModule {}
+export class SymbolsModule { }
