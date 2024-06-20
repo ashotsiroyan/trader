@@ -16,7 +16,7 @@ export class Symbol {
   @Column({ type: 'varchar', unique: true, nullable: false })
   name: string;
 
-  @Column({ type: 'timestamp', nullable: false })
+  @Column({ type: 'timestamptz', nullable: false })
   listingDate: Date;
 
   @Column({ type: 'float', nullable: true })

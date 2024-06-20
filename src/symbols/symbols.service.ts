@@ -92,15 +92,17 @@ export class SymbolsService {
   async restartTimeouts() {
     const symbols = await this.symbolRepository
       .createQueryBuilder('symbol')
-      .where('symbol.isListed = false OR (symbol.isListed = true AND symbol.priceOnMinute IS NULL)')
+      .where('symbol.isListed = false')
       .getMany();
-
+      
     if (symbols.length > 0) {
       for (let symbol of symbols) {
-        const timeoutMS = symbol.listingDate.getTime() - new Date().getTime() - 1000;
+        const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
+        console.log(symbol.listingDate);
+        
 
         if (timeoutMS > 0)
-          this.addTimeout(symbol.name, timeoutMS, (name) => !symbol.isListed ? this.setStartPrice(name) : this.setMinutePrice(name));
+          this.addTimeout(symbol.name, timeoutMS, (name) => this.setStartPrice(name));
       }
 
       this.logger.log("Timeouts restarted");
