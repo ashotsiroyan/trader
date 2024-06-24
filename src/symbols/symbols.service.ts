@@ -138,13 +138,13 @@ export class SymbolsService {
 
     let price = 0;
 
-    while (price == 0) {
+    while (!price) {
       const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
       const data = await response.json();
 
       price = data.price;
 
-      if (price == 0)
+      if (!price)
         await this.delay(100);
     }
 
@@ -154,7 +154,8 @@ export class SymbolsService {
     await this.symbolRepository.save(symbol);
     await this.buySymbol(symbol.id);
 
-    this.addTimeout(symbol.name, 1000 * 60, () => this.setMinutePrice(symbol.name));
+    const timeoutMS = symbol.createdAt.getTime() - Date.now() + (1000 * 60);
+    this.addTimeout(symbol.name, timeoutMS, () => this.setMinutePrice(symbol.name));
   }
 
   private async setMinutePrice(name: string) {
