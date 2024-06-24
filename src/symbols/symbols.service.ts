@@ -28,6 +28,30 @@ export class SymbolsService {
     this.restartTimeouts();
   }
 
+  async findSymbols(params?: { isListed?: boolean, names?: string[] }){
+    let where;
+
+    if(params?.isListed != undefined)
+      where = 'symbol.isListed = :isListed';
+
+    if(params?.names)
+      where = 'symbol.name IN (:...names)';
+
+    const symbols = await this.symbolRepository
+      .createQueryBuilder('symbol')
+      .where(where)
+      .setParameters({
+        isListed: params?.isListed,
+        names: params?.names
+      })
+      .orderBy({
+        'symbol.id': 'DESC'
+      })
+      .getMany();
+
+      return symbols;
+  }
+
   async createSymbol(createSymbolDto: CreateSymbolDto) {
     const { name, listingDate } = createSymbolDto;
 
@@ -42,46 +66,6 @@ export class SymbolsService {
       this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
 
     return symbol;
-  }
-
-  private async setStartPrice(name: string) {
-    const { MEXC_HOST } = process.env;
-    const symbol = await this.symbolRepository.findOneBy({ name });
-
-    if (symbol.isListed)
-      return;
-
-    let price = 0;
-
-    while (price == 0) {
-      const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
-      const data = await response.json();
-
-      price = data.price;
-
-      if (price == 0)
-        await this.delay(100);
-    }
-
-    this.addTimeout(symbol.name, 1000 * 60, () => this.setMinutePrice(symbol.name));
-
-    symbol.isListed = true;
-    symbol.priceOnStart = price;
-
-    await this.symbolRepository.save(symbol);
-    await this.buySymbol(symbol.id);
-  }
-
-  private async setMinutePrice(name: string) {
-    const { MEXC_HOST } = process.env;
-    const symbol = await this.symbolRepository.findOneBy({ name });
-
-    const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
-    const data = await response.json();
-
-    symbol.priceOnMinute = data.price;
-
-    await this.symbolRepository.save(symbol);
   }
 
   async restartTimeouts() {
@@ -123,6 +107,46 @@ export class SymbolsService {
     return response;
   }
 
+  private async setStartPrice(name: string) {
+    const { MEXC_HOST } = process.env;
+    const symbol = await this.symbolRepository.findOneBy({ name });
+
+    if (symbol.isListed)
+      return;
+
+    let price = 0;
+
+    while (price == 0) {
+      const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
+      const data = await response.json();
+
+      price = data.price;
+
+      if (price == 0)
+        await this.delay(100);
+    }
+
+    symbol.isListed = true;
+    symbol.priceOnStart = price;
+
+    await this.symbolRepository.save(symbol);
+    await this.buySymbol(symbol.id);
+
+    this.addTimeout(symbol.name, 1000 * 60, () => this.setMinutePrice(symbol.name));
+  }
+
+  private async setMinutePrice(name: string) {
+    const { MEXC_HOST } = process.env;
+    const symbol = await this.symbolRepository.findOneBy({ name });
+
+    const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
+    const data = await response.json();
+
+    symbol.priceOnMinute = data.price;
+
+    await this.symbolRepository.save(symbol);
+  }
+
   private async buySymbol(symbolId: number) {
     const symbol = await this.symbolRepository.findOneBy({ id: symbolId });
 
@@ -141,7 +165,7 @@ export class SymbolsService {
       },
       {
         key: 'quoteOrderQty',
-        value: '6'
+        value: '10'
       }
     ];
 

@@ -1,8 +1,8 @@
 form > div{
     display: flex;
     flex-flow: column;
-    width: 10%;
-    margin-bottom: 0.7vw;
+    width: 100%;
+    margin-bottom: 1.4vw;
 }
 
 form > div label{
@@ -11,9 +11,14 @@ form > div label{
 
 form button{
     width: 5.5vw;
-    height: 1.4vw;
+    height: 1.5vw;
     border: 1px solid;
     border-radius: 7px;
     background-color: transparent;
     cursor: pointer;
+}
+
+.container{
+    display: flex;
+    gap: 5vw;
 }

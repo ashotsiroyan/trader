@@ -9,7 +9,11 @@ export class AppController {
 
   @Get()
   @Render('index')
-  getHome() {}
+  async getHome() {
+    const listedSymbols = await this.symbolsService.findSymbols({ isListed: true });
+
+    return { listedSymbols }
+  }
 
   @Post('submit')
   async handleHomeForm(@Body() body: CreateSymbolDto, @Res() res: Response) {
