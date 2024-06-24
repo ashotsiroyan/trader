@@ -28,13 +28,13 @@ export class SymbolsService {
     this.restartTimeouts();
   }
 
-  async findSymbols(params?: { isListed?: boolean, names?: string[] }){
+  async findSymbols(params?: { isListed?: boolean, names?: string[] }) {
     let where;
 
-    if(params?.isListed != undefined)
+    if (params?.isListed != undefined)
       where = 'symbol.isListed = :isListed';
 
-    if(params?.names)
+    if (params?.names)
       where = 'symbol.name IN (:...names)';
 
     const symbols = await this.symbolRepository
@@ -49,7 +49,7 @@ export class SymbolsService {
       })
       .getMany();
 
-      return symbols;
+    return symbols;
   }
 
   async createSymbol(createSymbolDto: CreateSymbolDto) {
@@ -69,22 +69,44 @@ export class SymbolsService {
   }
 
   async restartTimeouts() {
-    const symbols = await this.symbolRepository
+    const notListedSymbols = await this.symbolRepository
       .createQueryBuilder('symbol')
       .where('symbol.isListed = false')
       .getMany();
-      
-    if (symbols.length > 0) {
-      for (let symbol of symbols) {
-        const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
 
-        if (timeoutMS > 0)
-          this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
-      }
+    const subQuery = this.orderRepository.createQueryBuilder('o1')
+      .select('o1.symbolId')
+      .innerJoin(Order, 'o2', 'o1.symbolId = o2.symbolId AND o1.id != o2.id AND o2.side = :side', { side: 'BUY' });
 
-      this.logger.log("Timeouts restarted");
-    } else
+    // Main query
+    const query = this.orderRepository.createQueryBuilder('order')
+      .select(['order.id as "orderId"', 'order.createdAt as "orderDate"', 'symbol.name as "name"'])
+      .leftJoin(Symbol, 'symbol', 'symbol.id = order.symbolId')
+      .where(`order.symbolId NOT IN (${subQuery.getQuery()})`)
+      .setParameters(subQuery.getParameters());
+
+    const notSoldSymbols: { orderId: number, name: string, orderDate: Date }[] = await query.getRawMany();
+
+    if (!notListedSymbols.length && !notSoldSymbols.length) {
       this.logger.log("No timeout to restart");
+      return;
+    }
+
+    for (let symbol of notListedSymbols) {
+      const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
+
+      if (timeoutMS > 0)
+        this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
+    }
+
+    for (let symbol of notSoldSymbols) {
+      const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60) - Date.now();
+
+      if (timeoutMS > 0)
+        this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(symbol.orderId));
+    }
+
+    this.logger.log("Timeouts restarted");
   }
 
   async getStatistics() {
