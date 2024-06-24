@@ -130,32 +130,36 @@ export class SymbolsService {
   }
 
   private async setStartPrice(name: string) {
-    const { MEXC_HOST } = process.env;
-    const symbol = await this.symbolRepository.findOneBy({ name });
-
-    if (symbol.isListed)
-      return;
-
-    let price = 0;
-
-    while (!price) {
-      const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
-      const data = await response.json();
-
-      price = data.price;
-
-      if (!price)
-        await this.delay(100);
+    try{
+      const { MEXC_HOST } = process.env;
+      const symbol = await this.symbolRepository.findOneBy({ name });
+  
+      if (symbol.isListed)
+        return;
+  
+      let price = 0;
+  
+      while (!price) {
+        const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
+        const data = await response.json();
+  
+        price = data.price;
+  
+        if (!price)
+          await this.delay(100);
+      }
+  
+      symbol.isListed = true;
+      symbol.priceOnStart = price;
+  
+      await this.symbolRepository.save(symbol);
+      await this.buySymbol(symbol.id);
+  
+      const timeoutMS = symbol.createdAt.getTime() - Date.now() + (1000 * 60);
+      this.addTimeout(symbol.name, timeoutMS, () => this.setMinutePrice(symbol.name));
+    }catch(error){
+      console.error(error);
     }
-
-    symbol.isListed = true;
-    symbol.priceOnStart = price;
-
-    await this.symbolRepository.save(symbol);
-    await this.buySymbol(symbol.id);
-
-    const timeoutMS = symbol.createdAt.getTime() - Date.now() + (1000 * 60);
-    this.addTimeout(symbol.name, timeoutMS, () => this.setMinutePrice(symbol.name));
   }
 
   private async setMinutePrice(name: string) {
