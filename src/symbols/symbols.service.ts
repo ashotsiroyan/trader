@@ -139,13 +139,13 @@ export class SymbolsService {
   
       let price = 0;
   
-      while (!price) {
+      while (!price || price == 0) {
         const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
         const data = await response.json();
   
         price = data.price;
   
-        if (!price)
+        if (!price || price == 0)
           await this.delay(100);
       }
   
