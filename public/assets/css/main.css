@@ -22,3 +22,10 @@ form button{
     display: flex;
     gap: 5vw;
 }
+
+span.error{
+    color: red;
+    font-size: small;
+    display: block;
+    margin-bottom: 0.7vw;
+}

@@ -19,6 +19,9 @@
           <label for="listingDate">Listing Date:</label>
           <input type="text" id="listingDate" name="listingDate">
         </div>
+        <% if(error){ %>
+          <span class="error"><%= error %></span>
+        <% } %>
         <button type="submit">Submit</button>
       </form>
       <form action="/restart-timeouts" method="POST" style="margin-top: 2vw;">
@@ -43,7 +46,7 @@
         </div>
         <div>
           <label for="quantity">Quantity</label>
-          <input id="quantity" name="quantity" type="number" />
+          <input id="quantity" name="quantity" type="number" min="6" />
         </div>
         <button type="submit">Buy</button>
       </form>
@@ -52,23 +55,19 @@
       <form action="/sell-symbol" method="POST">
         <h2>Sell a symbol</h2>
         <div>
-          <label for="symbolId">Symbol</label>
-          <select id="symbolId" name="symbolId">
-            <% listedSymbols.forEach( symbol=> { %>
-              <option value="<%= symbol.id %>">
+          <label for="orderId">Symbol</label>
+          <select id="orderId" name="orderId">
+            <% notSoldSymbols.forEach( symbol => { %>
+              <option value="<%= symbol.orderId %>">
                 <%= symbol.name %>
               </option>
             <% }); %>
           </select>
         </div>
-        <div>
-          <label for="quantity">Quantity</label>
-          <input id="quantity" name="quantity" type="number" />
-        </div>
         <button type="submit">Sell</button>
       </form>
-    </div> -->
-  </div>
+    </div>
+  </div> -->
 </body>
 
 </html>

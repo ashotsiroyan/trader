@@ -52,6 +52,28 @@ export class SymbolsService {
     return symbols;
   }
 
+  async findNotSoldSymbols(){
+    const subQuery = this.orderRepository.createQueryBuilder('o1')
+      .select('o1.symbolId')
+      .innerJoin(Order, 'o2', 'o1.symbolId = o2.symbolId AND o1.id != o2.id AND o2.side = :side', { side: 'BUY' });
+
+    // Main query
+    const query = this.orderRepository.createQueryBuilder('order')
+      .select([
+        'order.id as "orderId"',
+        'order.createdAt as "orderDate"',
+        'symbol.name as "name"',
+        'symbol.id as "id"'
+      ])
+      .leftJoin(Symbol, 'symbol', 'symbol.id = order.symbolId')
+      .where(`order.symbolId NOT IN (${subQuery.getQuery()})`)
+      .setParameters(subQuery.getParameters());
+
+    const notSoldSymbols: { id: number, name: string, orderId: number, orderDate: Date }[] = await query.getRawMany();
+
+    return notSoldSymbols;
+  }
+
   async createSymbol(createSymbolDto: CreateSymbolDto) {
     const { name, listingDate } = createSymbolDto;
 
@@ -74,18 +96,7 @@ export class SymbolsService {
       .where('symbol.isListed = false')
       .getMany();
 
-    const subQuery = this.orderRepository.createQueryBuilder('o1')
-      .select('o1.symbolId')
-      .innerJoin(Order, 'o2', 'o1.symbolId = o2.symbolId AND o1.id != o2.id AND o2.side = :side', { side: 'BUY' });
-
-    // Main query
-    const query = this.orderRepository.createQueryBuilder('order')
-      .select(['order.id as "orderId"', 'order.createdAt as "orderDate"', 'symbol.name as "name"'])
-      .leftJoin(Symbol, 'symbol', 'symbol.id = order.symbolId')
-      .where(`order.symbolId NOT IN (${subQuery.getQuery()})`)
-      .setParameters(subQuery.getParameters());
-
-    const notSoldSymbols: { orderId: number, name: string, orderDate: Date }[] = await query.getRawMany();
+    const notSoldSymbols = await this.findNotSoldSymbols();
 
     if (!notListedSymbols.length && !notSoldSymbols.length) {
       this.logger.log("No timeout to restart");
@@ -127,6 +138,61 @@ export class SymbolsService {
     }
 
     return response;
+  }
+
+  async buySymbol(symbolId: number, qty: number = 10) {
+    const symbol = await this.symbolRepository.findOneBy({ id: symbolId });
+
+    const queryParams = [
+      {
+        key: 'symbol',
+        value: symbol.name
+      },
+      {
+        key: 'side',
+        value: Side.Buy
+      },
+      {
+        key: 'type',
+        value: 'MARKET'
+      },
+      {
+        key: 'quoteOrderQty',
+        value: qty.toString()
+      }
+    ];
+
+    const order = await this.createOrder(queryParams, symbol.id);
+
+    if (!order)
+      return;
+
+    this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(order.id));
+  }
+
+  async sellSymbol(orderId: number) {
+    const order = await this.orderRepository.findOne({ where: { id: orderId }, relations: { symbol: true } })
+
+    const queryParams = [
+      {
+        key: 'symbol',
+        value: order.symbol.name
+      },
+      {
+        key: 'side',
+        value: Side.Sell
+      },
+      {
+        key: 'type',
+        value: 'MARKET'
+      },
+      {
+        key: 'quantity',
+        value: order.origQty
+      }
+    ];
+
+    await this.createOrder(queryParams, order.symbol.id);
   }
 
   private async setStartPrice(name: string) {
@@ -172,61 +238,6 @@ export class SymbolsService {
     symbol.priceOnMinute = data.price;
 
     await this.symbolRepository.save(symbol);
-  }
-
-  private async buySymbol(symbolId: number) {
-    const symbol = await this.symbolRepository.findOneBy({ id: symbolId });
-
-    const queryParams = [
-      {
-        key: 'symbol',
-        value: symbol.name
-      },
-      {
-        key: 'side',
-        value: Side.Buy
-      },
-      {
-        key: 'type',
-        value: 'MARKET'
-      },
-      {
-        key: 'quoteOrderQty',
-        value: '10'
-      }
-    ];
-
-    const order = await this.createOrder(queryParams, symbol.id);
-
-    if (!order)
-      return;
-
-    this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(order.id));
-  }
-
-  private async sellSymbol(orderId: number) {
-    const order = await this.orderRepository.findOne({ where: { id: orderId }, relations: { symbol: true } })
-
-    const queryParams = [
-      {
-        key: 'symbol',
-        value: order.symbol.name
-      },
-      {
-        key: 'side',
-        value: Side.Sell
-      },
-      {
-        key: 'type',
-        value: 'MARKET'
-      },
-      {
-        key: 'quantity',
-        value: order.origQty
-      }
-    ];
-
-    await this.createOrder(queryParams, order.symbol.id);
   }
 
   private async createOrder(queryParams: { key: string, value: string }[], symbolId: number): Promise<Order | null> {
