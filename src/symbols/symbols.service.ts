@@ -114,7 +114,7 @@ export class SymbolsService {
       const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60) - Date.now();
 
       if (timeoutMS > 0)
-        this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60, () => this.sellSymbol(symbol.orderId));
+        this.addTimeout(symbol.name + 'sell', timeoutMS, () => this.sellSymbol(symbol.orderId));
     }
 
     this.logger.log("Timeouts restarted");
