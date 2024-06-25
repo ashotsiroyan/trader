@@ -85,7 +85,7 @@ export class SymbolsService {
     const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
 
     if (timeoutMS > 0)
-      this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
+      this.addTimeout(symbol.name + 'start', timeoutMS, () => this.setStartPrice(symbol.name));
 
     return symbol;
   }
@@ -107,14 +107,14 @@ export class SymbolsService {
       const timeoutMS = symbol.listingDate.getTime() - Date.now() - 1000;
 
       if (timeoutMS > 0)
-        this.addTimeout(symbol.name, timeoutMS, () => this.setStartPrice(symbol.name));
+        this.addTimeout(symbol.name + 'start', timeoutMS, () => this.setStartPrice(symbol.name));
     }
 
     for (let symbol of notSoldSymbols) {
       const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60) - Date.now();
 
       if (timeoutMS > 0)
-        this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(symbol.orderId));
+        this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60, () => this.sellSymbol(symbol.orderId));
     }
 
     this.logger.log("Timeouts restarted");
@@ -167,7 +167,7 @@ export class SymbolsService {
     if (!order)
       return;
 
-    this.addTimeout(symbol.name, 1000 * 60 * 60, () => this.sellSymbol(order.id));
+    this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60, () => this.sellSymbol(order.id));
   }
 
   async sellSymbol(orderId: number) {
@@ -205,13 +205,13 @@ export class SymbolsService {
   
       let price = 0;
   
-      while (!price || price == 0) {
+      while (!price) {
         const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
         const data = await response.json();
   
-        price = data.price;
+        price = +data.price;
   
-        if (!price || price == 0)
+        if (!price)
           await this.delay(100);
       }
   
@@ -221,8 +221,7 @@ export class SymbolsService {
       await this.symbolRepository.save(symbol);
       await this.buySymbol(symbol.id);
   
-      const timeoutMS = symbol.createdAt.getTime() - Date.now() + (1000 * 60);
-      this.addTimeout(symbol.name, timeoutMS, () => this.setMinutePrice(symbol.name));
+      this.addTimeout(symbol.name + 'minute', 6000, () => this.setMinutePrice(symbol.name));
     }catch(error){
       console.error(error);
     }
