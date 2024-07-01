@@ -63,9 +63,4 @@ export class AppController {
 
     res.redirect('/');
   }
-
-  @Get('statistics')
-  getStatistics() {
-    return this.symbolsService.getStatistics();
-  }
 }

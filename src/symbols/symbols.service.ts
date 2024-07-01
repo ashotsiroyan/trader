@@ -121,7 +121,18 @@ export class SymbolsService {
   }
 
   async getStatistics() {
-    const symbols = await this.symbolRepository.find({ where: { isFinished: true }, relations: { history: true } });
+    const symbols = //await this.symbolRepository.find({ where: { isFinished: true }, relations: { history: true }, order: { listingDate: 'ASC' } });
+      await this.symbolRepository
+        .createQueryBuilder('symbol')
+        .leftJoinAndSelect('symbol.history', 'history')
+        .leftJoin('symbol.orders', "order",  "order.symbolId = symbol.id AND order.side = :side", { side: Side.Buy })
+        .addSelect([
+          'order.price'
+        ])
+        .where('symbol.isFinished = true')
+        .orderBy('symbol.listingDate', 'ASC')
+        .getMany();
+
     const response = [];
 
     for (let i = 0; i < symbols.length; i++) {
@@ -130,7 +141,8 @@ export class SymbolsService {
       response.push({
         symbol: symbol.name,
         priceOnStart: symbol.priceOnStart,
-        priceOnMinute: symbol.priceOnMinute
+        priceOnMinute: symbol.priceOnMinute,
+        orderPrice: symbol.orders.length ? +symbol.orders[0].price : 'null'
       });
 
       for (let j = 0; (j < symbol.history.length && j < 24); j++)

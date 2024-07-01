@@ -17,4 +17,9 @@ export class SymbolsController {
 
     return this.symbolsService.findSymbols(params);
   }
+
+  @Get('statistics')
+  getStatistics() {
+    return this.symbolsService.getStatistics();
+  }
 }
