@@ -111,7 +111,7 @@ export class SymbolsService {
     }
 
     for (let symbol of notSoldSymbols) {
-      const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60) - Date.now();
+      const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60 * 24) - Date.now();
 
       if (timeoutMS > 0)
         this.addTimeout(symbol.name + 'sell', timeoutMS, () => this.sellSymbol(symbol.orderId));
@@ -179,7 +179,7 @@ export class SymbolsService {
     if (!order)
       return;
 
-    this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60, () => this.sellSymbol(order.id));
+    this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60 * 24, () => this.sellSymbol(order.id));
   }
 
   async sellSymbol(orderId: number) {
