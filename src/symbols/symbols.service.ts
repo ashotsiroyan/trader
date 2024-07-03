@@ -52,7 +52,7 @@ export class SymbolsService {
     return symbols;
   }
 
-  async findNotSoldSymbols(){
+  async findNotSoldSymbols() {
     const subQuery = this.orderRepository.createQueryBuilder('o1')
       .select('o1.symbolId')
       .innerJoin(Order, 'o2', 'o1.symbolId = o2.symbolId AND o1.id != o2.id AND o2.side = :side', { side: 'BUY' });
@@ -111,7 +111,7 @@ export class SymbolsService {
     }
 
     for (let symbol of notSoldSymbols) {
-      const timeoutMS =  symbol.orderDate.getTime() + (1000 * 60 * 60 * 24) - Date.now();
+      const timeoutMS = symbol.orderDate.getTime() + ((1000 * 60 * 60 * 24) - 3000) - Date.now();
 
       if (timeoutMS > 0)
         this.addTimeout(symbol.name + 'sell', timeoutMS, () => this.sellSymbol(symbol.orderId));
@@ -125,7 +125,7 @@ export class SymbolsService {
       await this.symbolRepository
         .createQueryBuilder('symbol')
         .leftJoinAndSelect('symbol.history', 'history')
-        .leftJoin('symbol.orders', "order",  "order.symbolId = symbol.id AND order.side = :side", { side: Side.Buy })
+        .leftJoin('symbol.orders', "order", "order.symbolId = symbol.id AND order.side = :side", { side: Side.Buy })
         .addSelect([
           'order.price'
         ])
@@ -179,7 +179,7 @@ export class SymbolsService {
     if (!order)
       return;
 
-    this.addTimeout(symbol.name + 'sell', 1000 * 60 * 60 * 24, () => this.sellSymbol(order.id));
+    this.addTimeout(symbol.name + 'sell', (1000 * 60 * 60 * 24) - 3000, () => this.sellSymbol(order.id));
   }
 
   async sellSymbol(orderId: number) {
@@ -208,33 +208,33 @@ export class SymbolsService {
   }
 
   private async setStartPrice(name: string) {
-    try{
+    try {
       const { MEXC_HOST } = process.env;
       const symbol = await this.symbolRepository.findOneBy({ name });
-  
+
       if (symbol.isListed)
         return;
-  
+
       let price = 0;
-  
+
       while (!price) {
         const response = await fetch(`${MEXC_HOST}/ticker/price?symbol=${name}`);
         const data = await response.json();
-  
+
         price = +data.price;
-  
+
         if (!price)
           await this.delay(100);
       }
-  
+
       symbol.isListed = true;
       symbol.priceOnStart = price;
-  
+
       await this.symbolRepository.save(symbol);
       await this.buySymbol(symbol.id);
-  
+
       this.addTimeout(symbol.name + 'minute', 6000, () => this.setMinutePrice(symbol.name));
-    }catch(error){
+    } catch (error) {
       console.error(error);
     }
   }
